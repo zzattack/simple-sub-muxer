@@ -115,7 +115,7 @@ namespace SubsMuxer {
 
 		private void SpawnProcess(string arguments) {
 			Process p = new Process();
-			ProcessStartInfo psi = new ProcessStartInfo(MainForm.MkvMergeExecutable, arguments);
+			ProcessStartInfo psi = new ProcessStartInfo(Utils.MkvMergeExecutable, arguments);
 			Logger.Info("Muxing {0}", MkvFileInfo.Name);
 
 			psi.WindowStyle = ProcessWindowStyle.Hidden;
@@ -218,7 +218,7 @@ namespace SubsMuxer {
 				}
 				else if (c == '\n') {
 					append.Append("\r\n");
-					linestart = logger.TextLength + append.Length;
+					linestart = logger.TextLength+1;
 				}
 				else
 					append.Append(c);
@@ -237,6 +237,7 @@ namespace SubsMuxer {
 			logger.SelectionColor = c;
 			logger.AppendText(append.ToString());
 			logger.SelectionStart = logger.TextLength;
+			logger.ScrollToBottom();
 		}
 		#endregion
 

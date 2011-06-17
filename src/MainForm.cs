@@ -18,19 +18,8 @@ namespace SubsMuxer {
 			Logger.LogLine += new Logger.LogDelegate(Logger_LogLine);
 		}
 
-		static string FindMkvMerge() {
-			RegistryKey rkey = Registry.LocalMachine.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\mmg.exe");
-			if (rkey != null) {
-				string mmg = rkey.GetValue("") as string;
-				if (mmg != null)
-					return mmg.Substring(0, mmg.Length - 7) + "mkvmerge.exe";
-			}
-			return null;
-		}
-
-		public static string MkvMergeExecutable = FindMkvMerge();
 		private void MainForm_Load(object sender, EventArgs e) {
-			if (MkvMergeExecutable == null || !File.Exists(MkvMergeExecutable)) {
+			if (Utils.MkvMergeExecutable == null || !File.Exists(Utils.MkvMergeExecutable)) {
 				MessageBox.Show("Cannot find mkvmerge.exe, please install the MKVToolNix package from http://www.bunkus.org/videotools/mkvtoolnix/downloads.html");
 				Close();
 			}
@@ -77,7 +66,7 @@ namespace SubsMuxer {
 			rtbAppLog.SelectionStart = rtbAppLog.TextLength;
 			rtbAppLog.AppendText(line + "\r\n");
 			rtbAppLog.SelectionStart = rtbAppLog.TextLength;
-			rtbAppLog.ScrollToCaret();
+			rtbAppLog.ScrollToBottom();
 		}
 		#endregion
 

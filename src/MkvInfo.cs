@@ -49,7 +49,7 @@ namespace SubsMuxer {
 
 		public static MkvInfo Parse(string mkv) {
 			Process p = new Process();
-			ProcessStartInfo psi = new ProcessStartInfo(MainForm.MkvMergeExecutable, "--identify-verbose \"" + mkv + "\"");
+			ProcessStartInfo psi = new ProcessStartInfo(Utils.MkvMergeExecutable, "--identify-verbose \"" + mkv + "\"");
 			psi.WindowStyle = ProcessWindowStyle.Hidden;
 			psi.UseShellExecute = false;
 			psi.CreateNoWindow = true;
