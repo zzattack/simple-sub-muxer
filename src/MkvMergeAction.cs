@@ -18,35 +18,39 @@ namespace SubsMuxer {
 	}
 
 	class MkvMergeAction {
-		public Dictionary<string, string> FolderSubs { get; set; }
+		public Dictionary<string, LanguageEntry> FolderSubs { get; set; }
 		public MkvInfo MkvInfo { get; set; }
 		public FileInfo MkvFileInfo { get; set; }
 		public Status Status { get; set; }
 		public DataGridViewRow Row { get; set; }
+		public Episode Episode { get; set; }
 
 		public event EventHandler Finished;
 
 		public MkvMergeAction() {
-			FolderSubs = new Dictionary<string, string>();
+			FolderSubs = new Dictionary<string, LanguageEntry>();
 		}
 
-		public MkvMergeAction(string file)
+		public MkvMergeAction(Episode ep)
 			: this() {
-			MkvInfo = MkvInfo.Parse(file);
-			MkvFileInfo = new FileInfo(file);
-			LoadFolderSubs(file);
+			MkvInfo = MkvInfo.Parse(ep.fileInfo.FullName);
+			MkvFileInfo = ep.fileInfo;
+			Episode = ep;
+			LoadFolderSubs(MkvFileInfo.DirectoryName);
 		}
 
 		private void LoadFolderSubs(string file) {
-			string pattern = MkvFileInfo.Name.Substring(0, MkvFileInfo.Name.Length - 4) + "*.srt";
-			foreach (string srt in Directory.GetFiles(MkvFileInfo.DirectoryName, pattern)) {
-				string lang;
-				if (srt.Length > MkvFileInfo.FullName.Length) {
-					string[] parts = srt.Split('.');
-					lang = parts[parts.Length - 2].ToLower();
+			string pattern = "*.srt";
+			foreach (string srt in Directory.GetFiles(MkvFileInfo.DirectoryName, pattern).OrderBy(x => x)) {
+				if (srt.Substring(0, srt.Length - 4) == MkvFileInfo.Name.Substring(0, MkvFileInfo.Name.Length - 4)) {
+					AddSubtitleFromFolder(srt);
 				}
-				else lang = "default";
-				FolderSubs[lang] = srt;
+				else if (Episode.IsValid()) {
+					Episode srtEpisode = new SubsMuxer.Episode(new FileInfo(srt));
+					if (srtEpisode.IsValid() && srtEpisode.Equals(this.Episode)) {
+						AddSubtitleFromFolder(srt);
+					}
+				}
 			}
 
 			Status = CanBeSkipped ? Status.Finished : Status.Waiting;
@@ -55,14 +59,27 @@ namespace SubsMuxer {
 			}
 		}
 
+		private void AddSubtitleFromFolder(string srt) {
+			LanguageEntry lang;
+			if (srt.Length > MkvFileInfo.FullName.Length) {
+				string[] parts = srt.Split('.');
+				lang = Language.Find(parts[parts.Length - 2].ToLower());
+			}
+			else {
+				lang = Language.Find("Undetermined").Clone();
+				lang.IsDefault = true;
+			}
+			FolderSubs[srt] = lang;
+		}
+
 		public bool CanBeSkipped {
-			get { return FolderSubs.All(fs => MkvInfo.SubsAvailable.Contains(fs.Key)); }
+			get { return FolderSubs.All(fs => MkvInfo.SubsAvailable.Contains(fs.Value)); }
 		}
 
 		private string SubLangsToMux() {
-			List<string> toBeMerged = FolderSubs.Keys.ToList();
+			List<LanguageEntry> toBeMerged = FolderSubs.Values.ToList();
 			toBeMerged.RemoveAll(l => MkvInfo.SubsAvailable.Contains(l));
-			return string.Join(",", toBeMerged.ToArray());
+			return string.Join(",", toBeMerged.Select(x => x.ToString()).ToArray());
 		}
 
 		public override string ToString() {
@@ -72,7 +89,7 @@ namespace SubsMuxer {
 				return "Mux in " + SubLangsToMux();
 		}
 
-		public void Perform(string defaultLanguage, RichTextBox logger, ProgressBar progBar) {
+		public void Perform(RichTextBox logger, ProgressBar progBar) {
 			string outputDir = MkvFileInfo.DirectoryName + "\\_subsmuxed_";
 			if (!Directory.Exists(outputDir)) {
 				Logger.Info("Creating output directory {0}", outputDir);
@@ -94,11 +111,11 @@ namespace SubsMuxer {
 
 			// all subs
 			foreach (var sub in FolderSubs) {
-				if (MkvInfo.SubsAvailable.Contains(sub.Key)) continue;
+				if (MkvInfo.SubsAvailable.Contains(sub.Value)) continue;
 				arguments.Append("--language 0:");
-				arguments.Append(sub.Key == "default" ? defaultLanguage : sub.Key);
+				arguments.Append(sub.Value.ThreeLetterAbbr);
 				arguments.Append(" \"");
-				arguments.Append(sub.Value);
+				arguments.Append(sub.Key);
 				arguments.Append("\" ");
 			}
 			this.logger = logger;
@@ -218,7 +235,7 @@ namespace SubsMuxer {
 				}
 				else if (c == '\n') {
 					append.Append("\r\n");
-					linestart = logger.TextLength+1;
+					linestart = logger.TextLength + 1;
 				}
 				else
 					append.Append(c);
@@ -247,20 +264,26 @@ namespace SubsMuxer {
 			StringBuilder sb = new StringBuilder();
 			sb.AppendLine("The following subtitles will be muxed in: ");
 
+			var subsToMux = new Dictionary<string, LanguageEntry>(this.FolderSubs);
+			var subsAvail = MkvInfo.SubsAvailable;
 
-			Dictionary<string, string> subsToMux = new Dictionary<string, string>(this.FolderSubs);
-			foreach (string sub in MkvInfo.SubsAvailable) {
-				if (subsToMux.ContainsKey(sub))
-					subsToMux.Remove(sub);
-			}
-
-			foreach (var v in subsToMux) {
+			foreach (var v in subsToMux.Where(x => (!subsAvail.Contains(x.Value)))) {
 				sb.Append("\t");
-				sb.AppendLine(v.Value);
+				sb.AppendLine(v.Value.ThreeLetterAbbr);
 			}
 			sb.Append("This resulting mkv will be stored in _subsmuxed_ in the same dir as the original.");
 			return sb.ToString();
 		}
 
+
+		internal void UpdateDefault(LanguageEntry defaultLanguage) {
+			List<string> toBeUpdated = new List<string>();
+			foreach (var v in FolderSubs)
+				if (v.Value.IsDefault)
+					toBeUpdated.Add(v.Key);
+			foreach (var v in toBeUpdated)
+				FolderSubs[v] = defaultLanguage;
+			Row.Cells[3].Value = ToString();
+		}
 	}
 }

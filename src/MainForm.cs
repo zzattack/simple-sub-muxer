@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
 using System.Linq;
-using System.Text;
 using System.Windows.Forms;
 using System.IO;
 using System.Threading;
-using Microsoft.Win32;
+using System.Diagnostics;
 
 namespace SubsMuxer {
 	public partial class MainForm : Form {
@@ -26,12 +23,24 @@ namespace SubsMuxer {
 			dgv.Columns.Add(new DataGridViewProgressBarColumn() { HeaderText = "Progress" });
 			Logger.Info("Program started {0}", DateTime.Now);
 			Logger.Info("--------------------------------------------------------------\r\n");
+			Language.LoadLanguages();
+			cbDefaultLanguage.DisplayMember = "FullName";
+			cbDefaultLanguage.DataSource = Language.All();
+			cbDefaultLanguage.Text = "eng";
+			cbDefaultLanguage_SelectedIndexChanged(null, null);
 		}
 
 		#region ui event handlers
-		string defaultLanguage = "English";
+		LanguageEntry defaultLanguage;
 		private void cbDefaultLanguage_SelectedIndexChanged(object sender, EventArgs e) {
-			defaultLanguage = cbDefaultLanguage.Text;
+			defaultLanguage = (cbDefaultLanguage.SelectedItem as LanguageEntry).Clone();
+			defaultLanguage.IsDefault = true;
+			foreach (DataGridViewRow r in dgv.Rows) {
+				MkvMergeAction act = r.Tag as MkvMergeAction;
+				if (act.Status == Status.Waiting) {
+					act.UpdateDefault(defaultLanguage);
+				}
+			}
 		}
 
 		private void dgv_DragEnter(object sender, DragEventArgs e) {
@@ -83,7 +92,7 @@ namespace SubsMuxer {
 			foreach (string file in Directory.GetFiles(dir, "*.mkv", SearchOption.TopDirectoryOnly).OrderBy(f => f)) {
 				LoadFile(file);
 			}
-			foreach (string dir2 in Directory.GetDirectories(dir)) {
+			foreach (string dir2 in Directory.GetDirectories(dir).OrderBy(d => d)) {
 				if (!dir2.EndsWith("_subsmuxed_"))
 					LoadDirectory(dir2);
 				else
@@ -97,23 +106,26 @@ namespace SubsMuxer {
 				MessageBox.Show("File '" + fi.Name + "' is not an mkv");
 				return;
 			}
-			MkvMergeAction mergeAction = new MkvMergeAction(file);
+			Episode ep = new Episode(fi);
+
+			MkvMergeAction mergeAction = new MkvMergeAction(ep);
 			Invoke(new NewRowDelegate(NewRow), fi, mergeAction);
 		}
 
 		delegate void NewRowDelegate(FileInfo f, MkvMergeAction act);
 		void NewRow(FileInfo f, MkvMergeAction act) {
 			DataGridViewRow r = new DataGridViewRow();
+			act.Row = r;
 			r.CreateCells(dgv);
-			r.Cells[0].Value = f.Name;
+			r.Cells[0].Value = act.Episode.ToString();
 			r.Cells[0].ToolTipText = act.JobDescription();
-			r.Cells[1].Value = string.Join(",", act.MkvInfo.SubsAvailable.ToArray());
-			r.Cells[2].Value = string.Join(",", act.FolderSubs.Keys.ToArray());
-			r.Cells[3].Value = act.ToString();
+			r.Cells[1].Value = string.Join(",", act.MkvInfo.SubsAvailable.Select(x => x.ToString()).ToArray());
+			r.Cells[2].Value = string.Join(",", act.FolderSubs.Values.Select(x => x.ToString()).ToArray());
+			act.UpdateDefault(defaultLanguage);
+			// r.Cells[3].Value filled in by updatedefault()
 			r.Cells[4].Value = act.Status.ToString();
 			r.Tag = act;
 			dgv.Rows.Add(r);
-			act.Row = r;
 			dgv.FirstDisplayedScrollingRowIndex = r.Index;
 			if (act.Status == Status.Waiting && processing)
 				progbarTotal.Maximum += 100;
@@ -195,7 +207,7 @@ namespace SubsMuxer {
 						continue;
 				}
 				currentAction = mergeAction;
-				mergeAction.Perform(defaultLanguage, this.rtbMkvMergeLog, this.progbarTotal);
+				mergeAction.Perform(this.rtbMkvMergeLog, this.progbarTotal);
 			}
 		}
 

@@ -7,7 +7,6 @@ using System.IO;
 using System.Text.RegularExpressions;
 
 namespace SubsMuxer {
-
 	class MkvTrack {
 		public int ID { get; set; }
 		public string Type { get; set; }
@@ -68,13 +67,13 @@ namespace SubsMuxer {
 			return ret;
 		}
 
-		public List<string> SubsAvailable {
+		public List<LanguageEntry> SubsAvailable {
 			get {
-				List<string> ret = new List<string>();
+				List<LanguageEntry> ret = new List<LanguageEntry>();
 				foreach (MkvTrack tr in Tracks) {
 					if (tr.Type == "subtitles") {
 						if (tr.Properties.ContainsKey("language"))
-							ret.Add(tr.Properties["language"]);
+							ret.Add(Language.Find(tr.Properties["language"]));
 					}
 				}
 				return ret;
