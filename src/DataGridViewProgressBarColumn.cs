@@ -29,7 +29,7 @@ namespace SubsMuxer {
 				rc.Size = bmp.Size;
 
 				Color clrOne = Color.LightBlue;
-				Color clrTwo = Color.DarkBlue;
+				Color clrTwo = Color.Navy;
 
 				using (Graphics gfx = Graphics.FromImage(bmp))
 				using (Brush b = new LinearGradientBrush(rc, clrOne, clrTwo, LinearGradientMode.Vertical)) {
